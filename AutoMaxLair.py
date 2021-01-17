@@ -27,7 +27,7 @@ config = configparser.ConfigParser()
 
 # Configparser doesn't complain if it can't find the config file,
 # so manually raise an error if a value can't be
-if not config.read('Config.ini'):
+if not config.read('Config.ini', 'utf8'):
     raise FileNotFoundError('Failed to locate the Config.ini file.')
     
 
