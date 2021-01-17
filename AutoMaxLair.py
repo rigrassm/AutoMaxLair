@@ -178,6 +178,14 @@ def battle(inst) -> str:
                 inst.dmax_timer = 0
             inst.push_buttons((b'a', 1.5))
         elif re.search(inst.phrases['FIGHT'], text) != None:
+            # If we got the pokemon from the scientist, we don't know what
+            # is our current pokemon, check it first
+            if inst.pokemon is None:
+                inst.push_buttons((b'y', 1), (b'a', 1))
+                inst.pokemon = inst.read_selectable_pokemon('battle', language)[0]
+                inst.push_buttons((b'0', 1), (b'b', 1.5), (b'b', 2))
+                inst.log('We got ' + inst.pokemon.name + ' at the scientist')
+
             # Before the bot makes a decision, it needs to know what the boss
             # is.
             if inst.opponent is None:
@@ -222,8 +230,8 @@ def battle(inst) -> str:
             elif inst.dmax_timer > 1:
                 inst.dmax_timer -= 1
 
-            # Navitage to the move selection screen.
-            inst.push_buttons((b'0', 2), (b'a', 2))
+            # Navigate to the move selection screen.
+            inst.push_buttons((b'b', 2), (b'a', 2))
 
             # Then, check whether Dynamax is available.
             # Note that a dmax_timer value of -1 indicates that the player's
@@ -355,8 +363,39 @@ def backpacker(inst) -> str:
 
 def scientist(inst) -> str:
     """Take (or not) a Pokemon from the scientist."""
-    # TODO: decide to take a Pokemon if the current one is worse than average.
-    inst.push_buttons((b'0', 3), (b'b', 1))  # Don't take a Pokemon for now
+    # Consider the amount of remaining minibosses when scoring each rental
+    # Pokemon, at the start of the run, there are 3 - num_caught minibosses
+    # and 1 final boss. We weigh the boss more heavily because it is more
+    # difficult than the other bosses.
+    rental_weight = 3 - inst.num_caught
+    boss_weight = 2
+
+    # Calculate scores for an average and existing Pokemon.
+    pokemon_scores = []
+    for pokemon in inst.rental_pokemon:
+        score = ((rental_weight * inst.rental_scores[pokemon] + boss_weight
+            * inst.boss_matchups[pokemon][inst.boss])
+            / (rental_weight + boss_weight)
+        )
+        pokemon_scores.append(score)
+    average_score = sum(pokemon_scores) / len(pokemon_scores)
+
+    # TODO: actually read the current Pokemon's health so the bot can decide
+    # to switch if it's low.
+    existing_score = inst.HP * ((rental_weight
+        * inst.rental_scores[inst.pokemon.name] + boss_weight
+        * matchup_scoring.evaluate_matchup(inst.pokemon,
+        inst.boss_pokemon[inst.boss],inst.rental_pokemon))
+        / (rental_weight+boss_weight)
+    )
+    inst.log('Score for average pokemon :\t%0.2f' % average_score)
+    inst.log('Score for ' + inst.pokemon.name + ':\t%0.2f' % existing_score)
+
+    if average_score > existing_score:
+        inst.push_buttons((b'0', 3), (b'a', 1))
+        inst.pokemon = None
+    else:
+        inst.push_buttons((b'0', 3), (b'b', 1))
     inst.log('Detecting where the path led...')
     return 'detect'
 
